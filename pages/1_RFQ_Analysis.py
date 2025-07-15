@@ -68,6 +68,9 @@ def extract_text_from_pdf_path(file_path):
 def extract_specifications_with_openai(text, document_type):
     client = OpenAI(api_key=st.session_state.openai_api_key)
     
+    # Get model from environment or use default
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+    
     # Load the system prompt
     with open("prompts/rfq_analysis.md", "r") as f:
         system_prompt = f.read()
@@ -109,7 +112,7 @@ def extract_specifications_with_openai(text, document_type):
     """
     
     response = client.chat.completions.create(
-        model="gpt-4-turbo",
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -122,6 +125,9 @@ def extract_specifications_with_openai(text, document_type):
 # Function to generate cost estimate
 def generate_cost_estimate(spec_data, material_db, drawing_analyses=None):
     client = OpenAI(api_key=st.session_state.openai_api_key)
+    
+    # Get model from environment or use default
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1")
     
     # Load the system prompt
     with open("prompts/rfq_analysis.md", "r") as f:
@@ -183,7 +189,7 @@ def generate_cost_estimate(spec_data, material_db, drawing_analyses=None):
     """
     
     response = client.chat.completions.create(
-        model="gpt-4-turbo",
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
