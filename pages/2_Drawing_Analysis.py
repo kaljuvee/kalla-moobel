@@ -75,6 +75,7 @@ def analyze_drawing_with_openai(image, analysis_type):
     client = OpenAI(api_key=st.session_state.openai_api_key)
     
     # Get model from environment or use default for vision tasks
+    # For image analysis, we need a vision-capable model
     model = os.getenv("OPENAI_MODEL", "gpt-4o")
     
     # Encode image to base64
