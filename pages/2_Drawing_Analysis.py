@@ -249,9 +249,13 @@ if st.session_state.uploaded_files:
         )
     
     with col2:
+        # Get the current model from environment
+        current_model = os.getenv("OPENAI_MODEL", "gpt-4o")
+        model_display_name = f"OpenAI {current_model}"
+        
         model_choice = st.selectbox(
             "AI Model",
-            ["OpenAI GPT-4 Vision", "Anthropic Claude"],
+            [model_display_name, "Anthropic Claude"],
             help="Select which AI model to use for analysis"
         )
     
@@ -272,9 +276,9 @@ if st.session_state.uploaded_files:
                     for j, image in enumerate(images):
                         with st.spinner(f"Analyzing PDF page {j+1} of {len(images)}..."):
                             # Perform analysis based on model choice
-                            if model_choice == "OpenAI GPT-4 Vision":
+                            if model_choice.startswith("OpenAI"):
                                 analysis_result = analyze_drawing_with_openai(image, analysis_type)
-                                model_used = "OpenAI GPT-4 Vision"
+                                model_used = model_choice
                             else:
                                 if api_keys_loaded['anthropic_api_key']:
                                     analysis_result = analyze_drawing_with_anthropic(image, analysis_type)
@@ -301,9 +305,9 @@ if st.session_state.uploaded_files:
                     image = Image.open(file_obj)
                     
                     # Perform analysis based on model choice
-                    if model_choice == "OpenAI GPT-4 Vision":
+                    if model_choice.startswith("OpenAI"):
                         analysis_result = analyze_drawing_with_openai(image, analysis_type)
-                        model_used = "OpenAI GPT-4 Vision"
+                        model_used = model_choice
                     else:
                         if api_keys_loaded['anthropic_api_key']:
                             analysis_result = analyze_drawing_with_anthropic(image, analysis_type)
