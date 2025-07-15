@@ -217,31 +217,15 @@ def json_to_df(json_data):
     df = pd.DataFrame(flat_data.items(), columns=["Field", "Value"])
     return df
 
-# API Key input
+# API Key status
 with st.sidebar:
     st.header("API Keys")
     
     # Show status of loaded API keys
     if api_keys_loaded['openai_api_key']:
-        st.success("OpenAI API key loaded from .env file")
+        st.success("✅ OpenAI API key loaded from .env file")
     else:
-        st.warning("OpenAI API key not found in .env file")
-    
-    # Manual API key input
-    openai_api_key = st.text_input(
-        "OpenAI API Key",
-        type="password",
-        value=api_keys_loaded.get('openai_api_key', ''),
-        help="Enter your OpenAI API key if not loaded from .env file"
-    )
-    
-    if openai_api_key:
-        st.session_state.openai_api_key = openai_api_key
-        st.success("OpenAI API key set")
-    elif api_keys_loaded.get('openai_api_key'):
-        st.session_state.openai_api_key = api_keys_loaded['openai_api_key']
-    else:
-        st.error("OpenAI API key required")
+        st.error("❌ OpenAI API key not found in .env file")
 
 # Demo data toggle
 with st.sidebar:
@@ -250,8 +234,8 @@ with st.sidebar:
     st.session_state.use_demo_data = use_demo
 
 # Main content
-if 'openai_api_key' not in st.session_state or not st.session_state.openai_api_key:
-    st.error("Please enter your OpenAI API key in the sidebar to continue.")
+if not api_keys_loaded['openai_api_key']:
+    st.error("❌ OpenAI API key not found in .env file. Please add your OPENAI_API_KEY to the .env file to continue.")
     st.stop()
 
 # Demo data

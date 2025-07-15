@@ -6,3 +6,4 @@ python-dotenv
 Pillow
 anthropic
 requests
+PyMuPDF

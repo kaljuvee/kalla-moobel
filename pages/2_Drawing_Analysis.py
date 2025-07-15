@@ -10,6 +10,8 @@ from PIL import Image
 import base64
 from io import BytesIO
 from utils import load_api_keys
+import PyPDF2
+import fitz  # PyMuPDF for better PDF handling
 
 st.set_page_config(
     page_title="Drawing Analysis",
@@ -24,12 +26,39 @@ st.markdown("Analyze technical drawings and blueprints for furniture manufacturi
 api_keys_loaded = load_api_keys()
 
 # Initialize session state variables if they don't exist
-if 'uploaded_images' not in st.session_state:
-    st.session_state.uploaded_images = []
+if 'uploaded_files' not in st.session_state:
+    st.session_state.uploaded_files = []
 if 'analysis_results' not in st.session_state:
     st.session_state.analysis_results = []
 if 'use_demo_data' not in st.session_state:
     st.session_state.use_demo_data = False
+
+# Function to convert PDF to images
+def pdf_to_images(pdf_file, dpi=150):
+    """Convert PDF pages to PIL Images"""
+    try:
+        # Read PDF file
+        pdf_document = fitz.open(stream=pdf_file.read(), filetype="pdf")
+        images = []
+        
+        for page_num in range(len(pdf_document)):
+            page = pdf_document.load_page(page_num)
+            # Render page to image
+            mat = fitz.Matrix(dpi/72, dpi/72)  # 72 is the default DPI
+            pix = page.get_pixmap(matrix=mat)
+            
+            # Convert to PIL Image
+            img_data = pix.tobytes("png")
+            img = Image.open(BytesIO(img_data))
+            images.append(img)
+        
+        pdf_document.close()
+        pdf_file.seek(0)  # Reset file pointer
+        return images
+        
+    except Exception as e:
+        st.error(f"Error converting PDF: {str(e)}")
+        return []
 
 # Function to encode image to base64
 def encode_image_to_base64(image):
@@ -40,6 +69,9 @@ def encode_image_to_base64(image):
 
 # Function to analyze drawing with OpenAI Vision
 def analyze_drawing_with_openai(image, analysis_type):
+    if 'openai_api_key' not in st.session_state or not st.session_state.openai_api_key:
+        return "Error: OpenAI API key not available. Please check your .env file."
+    
     client = OpenAI(api_key=st.session_state.openai_api_key)
     
     # Encode image to base64
@@ -89,6 +121,9 @@ def analyze_drawing_with_openai(image, analysis_type):
 
 # Function to analyze drawing with Anthropic Claude (if available)
 def analyze_drawing_with_anthropic(image, analysis_type):
+    if 'anthropic_api_key' not in st.session_state or not st.session_state.anthropic_api_key:
+        return "Error: Anthropic API key not available. Please check your .env file."
+    
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=st.session_state.anthropic_api_key)
@@ -142,49 +177,20 @@ def analyze_drawing_with_anthropic(image, analysis_type):
     except Exception as e:
         return f"Error analyzing with Anthropic: {str(e)}"
 
-# API Key input
+# API Key status
 with st.sidebar:
     st.header("API Keys")
     
     # Show status of loaded API keys
     if api_keys_loaded['openai_api_key']:
-        st.success("OpenAI API key loaded from .env file")
+        st.success("✅ OpenAI API key loaded from .env file")
     else:
-        st.warning("OpenAI API key not found in .env file")
+        st.error("❌ OpenAI API key not found in .env file")
     
     if api_keys_loaded['anthropic_api_key']:
-        st.success("Anthropic API key loaded from .env file")
+        st.success("✅ Anthropic API key loaded from .env file")
     else:
-        st.info("Anthropic API key not found (optional)")
-    
-    # Manual API key input
-    openai_api_key = st.text_input(
-        "OpenAI API Key",
-        type="password",
-        value=api_keys_loaded.get('openai_api_key', ''),
-        help="Enter your OpenAI API key if not loaded from .env file"
-    )
-    
-    anthropic_api_key = st.text_input(
-        "Anthropic API Key (Optional)",
-        type="password",
-        value=api_keys_loaded.get('anthropic_api_key', ''),
-        help="Enter your Anthropic API key for additional analysis options"
-    )
-    
-    if openai_api_key:
-        st.session_state.openai_api_key = openai_api_key
-        st.success("OpenAI API key set")
-    elif api_keys_loaded.get('openai_api_key'):
-        st.session_state.openai_api_key = api_keys_loaded['openai_api_key']
-    else:
-        st.error("OpenAI API key required")
-    
-    if anthropic_api_key:
-        st.session_state.anthropic_api_key = anthropic_api_key
-        st.success("Anthropic API key set")
-    elif api_keys_loaded.get('anthropic_api_key'):
-        st.session_state.anthropic_api_key = api_keys_loaded['anthropic_api_key']
+        st.info("ℹ️ Anthropic API key not found (optional)")
 
 # Demo data toggle
 with st.sidebar:
@@ -193,8 +199,8 @@ with st.sidebar:
     st.session_state.use_demo_data = use_demo
 
 # Main content
-if 'openai_api_key' not in st.session_state or not st.session_state.openai_api_key:
-    st.error("Please enter your OpenAI API key in the sidebar to continue.")
+if not api_keys_loaded['openai_api_key']:
+    st.error("❌ OpenAI API key not found in .env file. Please add your OPENAI_API_KEY to the .env file to continue.")
     st.stop()
 
 # File upload section
@@ -202,17 +208,31 @@ st.header("Upload Technical Drawings")
 
 uploaded_files = st.file_uploader(
     "Upload technical drawings, blueprints, or furniture designs",
-    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'],
+    type=['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff', 'pdf'],
     accept_multiple_files=True,
-    help="Upload images of technical drawings, blueprints, or furniture designs for analysis"
+    help="Upload images or PDF files of technical drawings, blueprints, or furniture designs for analysis. PDF files will be converted to images and each page analyzed separately."
 )
 
 if uploaded_files:
-    st.session_state.uploaded_images = uploaded_files
-    st.success(f"Uploaded {len(uploaded_files)} drawing(s)")
+    st.session_state.uploaded_files = uploaded_files
+    
+    # Count file types
+    pdf_count = sum(1 for f in uploaded_files if f.type == "application/pdf")
+    image_count = len(uploaded_files) - pdf_count
+    
+    success_msg = f"Uploaded {len(uploaded_files)} file(s)"
+    if pdf_count > 0:
+        success_msg += f" ({pdf_count} PDF{'s' if pdf_count > 1 else ''}"
+        if image_count > 0:
+            success_msg += f", {image_count} image{'s' if image_count > 1 else ''}"
+        success_msg += ")"
+    elif image_count > 0:
+        success_msg += f" ({image_count} image{'s' if image_count > 1 else ''})"
+    
+    st.success(success_msg)
 
 # Analysis options
-if st.session_state.uploaded_images:
+if st.session_state.uploaded_files:
     st.header("Analysis Options")
     
     col1, col2 = st.columns(2)
@@ -235,33 +255,70 @@ if st.session_state.uploaded_images:
     if st.button("Analyze Drawings"):
         st.session_state.analysis_results = []
         
-        for i, image_file in enumerate(st.session_state.uploaded_images):
+        for i, file_obj in enumerate(st.session_state.uploaded_files):
             with st.spinner(f"Analyzing drawing {i+1}..."):
-                # Open and process image
-                image = Image.open(image_file)
-                
-                # Perform analysis based on model choice
-                if model_choice == "OpenAI GPT-4 Vision":
-                    analysis_result = analyze_drawing_with_openai(image, analysis_type)
-                    model_used = "OpenAI GPT-4 Vision"
-                else:
-                    if 'anthropic_api_key' in st.session_state and st.session_state.anthropic_api_key:
-                        analysis_result = analyze_drawing_with_anthropic(image, analysis_type)
-                        model_used = "Anthropic Claude"
-                    else:
-                        st.error("Anthropic API key required for Claude analysis")
+                # Determine if the file is a PDF or an image
+                if file_obj.type == "application/pdf":
+                    images = pdf_to_images(file_obj)
+                    if not images:
+                        st.error(f"Could not convert PDF {file_obj.name} to images.")
                         continue
-                
-                # Store results
-                result = {
-                    "drawing_name": image_file.name,
-                    "analysis_type": analysis_type,
-                    "model_used": model_used,
-                    "analysis_result": analysis_result,
-                    "image": image
-                }
-                
-                st.session_state.analysis_results.append(result)
+                    
+                    # Analyze each page of the PDF
+                    for j, image in enumerate(images):
+                        with st.spinner(f"Analyzing PDF page {j+1} of {len(images)}..."):
+                            # Perform analysis based on model choice
+                            if model_choice == "OpenAI GPT-4 Vision":
+                                analysis_result = analyze_drawing_with_openai(image, analysis_type)
+                                model_used = "OpenAI GPT-4 Vision"
+                            else:
+                                if api_keys_loaded['anthropic_api_key']:
+                                    analysis_result = analyze_drawing_with_anthropic(image, analysis_type)
+                                    model_used = "Anthropic Claude"
+                                else:
+                                    st.error("Anthropic API key required for Claude analysis. Please add ANTHROPIC_API_KEY to your .env file.")
+                                    continue
+                            
+                            # Store results
+                            result = {
+                                "drawing_name": f"{file_obj.name} (Page {j+1})",
+                                "analysis_type": analysis_type,
+                                "model_used": model_used,
+                                "analysis_result": analysis_result,
+                                "image": image,
+                                "file_type": "pdf",
+                                "page_number": j + 1,
+                                "total_pages": len(images)
+                            }
+                            
+                            st.session_state.analysis_results.append(result)
+                else: # Assume it's an image
+                    # Open and process image
+                    image = Image.open(file_obj)
+                    
+                    # Perform analysis based on model choice
+                    if model_choice == "OpenAI GPT-4 Vision":
+                        analysis_result = analyze_drawing_with_openai(image, analysis_type)
+                        model_used = "OpenAI GPT-4 Vision"
+                    else:
+                        if api_keys_loaded['anthropic_api_key']:
+                            analysis_result = analyze_drawing_with_anthropic(image, analysis_type)
+                            model_used = "Anthropic Claude"
+                        else:
+                            st.error("Anthropic API key required for Claude analysis. Please add ANTHROPIC_API_KEY to your .env file.")
+                            continue
+                    
+                    # Store results
+                    result = {
+                        "drawing_name": file_obj.name,
+                        "analysis_type": analysis_type,
+                        "model_used": model_used,
+                        "analysis_result": analysis_result,
+                        "image": image,
+                        "file_type": "image"
+                    }
+                    
+                    st.session_state.analysis_results.append(result)
         
         st.success("Analysis completed!")
 
@@ -270,7 +327,13 @@ if st.session_state.analysis_results:
     st.header("Analysis Results")
     
     for i, result in enumerate(st.session_state.analysis_results):
-        with st.expander(f"Drawing {i+1}: {result['drawing_name']}"):
+        # Create appropriate title for the expander
+        if result.get('file_type') == 'pdf':
+            title = f"PDF Page {result.get('page_number', '?')}: {result['drawing_name']}"
+        else:
+            title = f"Image: {result['drawing_name']}"
+        
+        with st.expander(title):
             col1, col2 = st.columns([1, 2])
             
             with col1:
@@ -278,6 +341,10 @@ if st.session_state.analysis_results:
                 
                 st.info(f"**Analysis Type:** {result['analysis_type']}")
                 st.info(f"**Model Used:** {result['model_used']}")
+                
+                # Show additional info for PDFs
+                if result.get('file_type') == 'pdf':
+                    st.info(f"**Page:** {result.get('page_number', '?')} of {result.get('total_pages', '?')}")
             
             with col2:
                 st.subheader("Analysis Results")
@@ -291,15 +358,22 @@ Drawing Analysis Report
 Drawing: {result['drawing_name']}
 Analysis Type: {result['analysis_type']}
 Model Used: {result['model_used']}
-
+"""
+                
+                if result.get('file_type') == 'pdf':
+                    analysis_text += f"Page: {result.get('page_number', '?')} of {result.get('total_pages', '?')}\n"
+                
+                analysis_text += f"""
 Analysis Results:
 {result['analysis_result']}
 """
                 
+                # Create safe filename
+                safe_filename = re.sub(r'[^\w\-_\.]', '_', result['drawing_name'])
                 st.download_button(
                     label="Download Analysis Report",
                     data=analysis_text,
-                    file_name=f"drawing_analysis_{result['drawing_name']}.txt",
+                    file_name=f"drawing_analysis_{safe_filename}.txt",
                     mime="text/plain"
                 )
 
@@ -357,7 +431,7 @@ Recommended Tools: Table saw, router, drill press, welding equipment
 # Instructions
 st.header("How to Use")
 st.markdown("""
-1. **Upload Drawings**: Upload technical drawings, blueprints, or furniture design images
+1. **Upload Drawings**: Upload technical drawings, blueprints, or furniture design images (PNG, JPG, JPEG, GIF, BMP, TIFF) or PDF files
 2. **Select Analysis Type**: Choose the type of analysis you need:
    - **Comprehensive**: Full analysis of all aspects
    - **Dimensions**: Focus on measurements and sizes
@@ -366,7 +440,14 @@ st.markdown("""
    - **Complexity**: Focus on manufacturing difficulty
 3. **Choose AI Model**: Select between OpenAI GPT-4 Vision or Anthropic Claude
 4. **Analyze**: Click the analyze button to process your drawings
+   - For PDF files, each page will be analyzed separately
+   - For image files, each image will be analyzed individually
 5. **Review Results**: Examine the detailed analysis and download reports
+
+**PDF Support**: 
+- PDF files are automatically converted to images for analysis
+- Each page of a multi-page PDF is analyzed separately
+- Results are organized by page number for easy reference
 
 This tool helps furniture manufacturers quickly extract specifications from technical drawings for cost estimation and manufacturing planning.
 """) 

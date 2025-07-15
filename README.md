@@ -5,7 +5,7 @@ A Streamlit application that helps furniture manufacturers automate the RFQ (Req
 ## Features
 
 - **RFQ Analysis**: Upload project specifications and generate detailed cost estimates for furniture manufacturing
-- **Drawing Analysis**: Analyze technical drawings and blueprints to extract manufacturing specifications
+- **Drawing Analysis**: Analyze technical drawings and blueprints (including PDF files) to extract manufacturing specifications
 - **Material Database Integration**: Connect with existing product and material databases for accurate pricing
 - **Automated Cost Calculation**: Uses AI to calculate material costs, labor hours, and construction requirements
 - **Quote Generation**: Generate detailed cost breakdowns and preliminary quotes
@@ -24,7 +24,16 @@ A Streamlit application that helps furniture manufacturers automate the RFQ (Req
    pip install -r requirements.txt
    ```
 
-3. Run the Streamlit app:
+3. Set up your API keys:
+   - Copy `env_example.txt` to `.env`
+   - Add your OpenAI API key (required)
+   - Add your Anthropic API key (optional)
+   ```
+   cp env_example.txt .env
+   # Edit .env file with your actual API keys
+   ```
+
+4. Run the Streamlit app:
    ```
    streamlit run Home.py
    ```
@@ -32,7 +41,7 @@ A Streamlit application that helps furniture manufacturers automate the RFQ (Req
 ## Usage
 
 1. Start the application and navigate to the provided URL (typically http://localhost:8501)
-2. Enter your OpenAI API key in the sidebar (Anthropic API key is optional)
+2. Verify that your API keys are loaded correctly (check the sidebar status)
 3. Navigate to the desired page using the sidebar:
    - **RFQ Analysis**: For analyzing project specifications and generating cost estimates
    - **Drawing Analysis**: For analyzing technical drawings and blueprints
@@ -58,9 +67,21 @@ The `data` directory contains sample documents for testing:
 ## Requirements
 
 - Python 3.8+
-- OpenAI API key (required)
-- Anthropic API key (optional, for additional analysis options)
+- OpenAI API key (required) - stored in `.env` file
+- Anthropic API key (optional, for additional analysis options) - stored in `.env` file
 - Dependencies listed in requirements.txt
+
+## Testing
+
+Run the test suite to verify API key loading:
+```bash
+python tests/test_openai_key.py
+```
+
+Or test key loading manually:
+```bash
+python test_key_loading.py
+```
 
 ## How It Works
 

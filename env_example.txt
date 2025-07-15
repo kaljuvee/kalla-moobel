@@ -1,0 +1,8 @@
+# API Keys for Kalla Moobel Application
+# Copy this content to a file named .env and replace with your actual API keys
+
+# Required: OpenAI API key for GPT-4 Vision analysis
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Optional: Anthropic API key for Claude analysis
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-api-key-here 
